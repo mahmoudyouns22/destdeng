@@ -63,6 +63,24 @@ const state = {
 };
 
 const el = (id) => document.getElementById(id);
+
+/**
+ * Attach a listener, and do nothing if that element is not on the page.
+ *
+ * Not defensiveness for its own sake. Every file here is cached independently by the
+ * host — GitHub Pages sends max-age=600 on each one with no revalidation — so for a
+ * few minutes after a deploy a visitor can hold a fresh index.html with a stale
+ * app.js, or the reverse. The reverse is the dangerous one: new code reaching for a
+ * button the old markup does not have would throw inside setup and take the whole
+ * page down, turning a ten-minute cosmetic skew into a ten-minute outage.
+ *
+ * With this, a missing element costs exactly the feature it belongs to.
+ */
+function on(id, event, handler) {
+  const node = el(id);
+  if (node) node.addEventListener(event, handler);
+  return node;
+}
 const ui = {
   screens: {
     language: el("screen-language"),
@@ -108,7 +126,9 @@ const ui = {
 
 function show(name) {
   state.screen = name;
-  for (const [key, node] of Object.entries(ui.screens)) node.hidden = key !== name;
+  for (const [key, node] of Object.entries(ui.screens)) {
+    if (node) node.hidden = key !== name;
+  }
 }
 
 function fault(title, detail) {
@@ -185,6 +205,7 @@ function setLanguage(language) {
 function buildLanguageButtons() {
   const native = { en: "EN", ar: "ع", ku: "کو" };
   for (const host of [ui.langs, ui.boardLangs]) {
+    if (!host) continue;
     host.innerHTML = "";
     for (const [code, name] of Object.entries(LANGUAGES)) {
       const button = document.createElement("button");
@@ -407,6 +428,7 @@ function loop() {
 const SAMPLES_PER_SIGN = 12;
 
 function advise(text, tone = "") {
+  if (!ui.teachAdvice) return;
   ui.teachAdvice.textContent = text;
   ui.teachAdvice.dataset.tone = tone;
 }
@@ -505,6 +527,7 @@ function buildLabelChoices() {
  * ------------------------------------------------------------------ */
 
 function startSession() {
+  if (!ui.sessionLive) return;
   state.session = {
     order: Object.keys(VOCABULARY),
     index: 0,
@@ -546,8 +569,8 @@ function advanceSession() {
 async function finishSession() {
   state.session = null;
   state.teaching = null;
-  ui.sessionIdle.hidden = false;
-  ui.sessionLive.hidden = true;
+  if (ui.sessionIdle) ui.sessionIdle.hidden = false;
+  if (ui.sessionLive) ui.sessionLive.hidden = true;
 
   setStatus(ui.teachStatus, "idle", "Fitting");
   await refreshTaught();
@@ -563,7 +586,7 @@ async function finishSession() {
 
 function renderSession() {
   const session = state.session;
-  if (!session) return;
+  if (!session || !ui.sessionStep) return;
 
   const label = session.order[session.index];
   const rtl = isRtl(state.language);
@@ -645,6 +668,7 @@ function renderBoard() {
 }
 
 function showWord(label) {
+  if (!ui.boardShow) return;
   const rtl = isRtl(state.language);
 
   ui.showWord.textContent = toText(label, state.language);
@@ -717,33 +741,33 @@ function wire() {
     }
   }
 
-  el("btn-board").addEventListener("click", () => {
+  on("btn-board", "click", () => {
     renderBoard();
     show("board");
   });
 
-  el("btn-board-back").addEventListener("click", () => show("live"));
+  on("btn-board-back", "click", () => show("live"));
 
-  ui.boardShow.addEventListener("click", () => { ui.boardShow.hidden = true; });
+  on("board-show", "click", () => { ui.boardShow.hidden = true; });
 
-  el("btn-teach").addEventListener("click", async () => {
+  on("btn-teach", "click", async () => {
     show("teach");
     await refreshTaught();
     setStatus(ui.teachStatus, "idle", "Ready");
   });
 
-  el("btn-back").addEventListener("click", async () => {
+  on("btn-back", "click", async () => {
     if (state.session) await finishSession();
     state.teaching = null;
     show("live");
     await rebuildModel();
   });
 
-  el("btn-session").addEventListener("click", startSession);
-  el("btn-skip").addEventListener("click", advanceSession);
-  el("btn-stop").addEventListener("click", finishSession);
+  on("btn-session", "click", startSession);
+  on("btn-skip", "click", advanceSession);
+  on("btn-stop", "click", finishSession);
 
-  el("btn-save").addEventListener("click", async () => {
+  on("btn-save", "click", async () => {
     const taught = await store.all();
     if (taught.length === 0) {
       advise("Nothing taught on this device yet — there is nothing to save.");
@@ -754,7 +778,7 @@ function wire() {
            `web/model/signs.json and everyone who opens the site gets them.`, "ready");
   });
 
-  el("file-load").addEventListener("change", async (event) => {
+  on("file-load", "change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
@@ -771,7 +795,7 @@ function wire() {
     event.target.value = "";
   });
 
-  el("btn-record").addEventListener("click", () => {
+  on("btn-record", "click", () => {
     state.teaching = ui.teachLabel.value;
     segmenter.reset();
     advise(`Waiting for “${state.teaching}”. Make the sign now — it records by ` +
@@ -779,7 +803,7 @@ function wire() {
     setStatus(ui.teachStatus, "warn", "Show your hands");
   });
 
-  el("btn-forget").addEventListener("click", async () => {
+  on("btn-forget", "click", async () => {
     const total = [...state.counts.values()].reduce((a, b) => a + b, 0);
     if (!total) return;
     if (!confirm(`Delete all ${total} samples taught on this device? ` +
@@ -789,14 +813,14 @@ function wire() {
     await rebuildModel();
   });
 
-  el("fault-retry").addEventListener("click", () => location.reload());
+  on("fault-retry", "click", () => location.reload());
 
   // The panel is the obvious place to press when nothing has been taught, and on a
   // narrow screen the header button is hidden.
   // Tapping the panel when nothing is taught opens the board rather than the teaching
   // screen: it is the thing that works right now, and a screen that cannot answer
   // should hand over to one that can.
-  ui.panel.addEventListener("click", () => {
+  on("panel", "click", () => {
     if (state.model) return;
     renderBoard();
     show("board");
