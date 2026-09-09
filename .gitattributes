@@ -1,0 +1,13 @@
+# MediaPipe and its WebAssembly are pinned third-party copies, served rather than
+# written here. Marking them vendored keeps them out of the language breakdown, which
+# otherwise reports this project as mostly someone else's minified JavaScript.
+web/vendor/** linguist-vendored
+
+# Written by tools/export_vocabulary.py from src/vocabulary.py.
+web/js/vocabulary.js linguist-generated
+
+# Keep line endings sane across the Windows machine this is developed on and the
+# Linux runner that deploys it.
+* text=auto eol=lf
+*.wasm binary
+*.task binary
