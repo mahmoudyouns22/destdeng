@@ -5,6 +5,9 @@
 ![Offline](https://img.shields.io/badge/network-not%20required-4ECDC4)
 ![Output languages](https://img.shields.io/badge/output-English%20%C2%B7%20Arabic%20%C2%B7%20Kurdish-4ECDC4)
 ![Self-test](https://img.shields.io/badge/self--test-11%20checks-3DDC84)
+![Web self-test](https://img.shields.io/badge/web%20self--test-17%20checks-3DDC84)
+
+**▶ Try it: [mahmoudyouns22.github.io/destdeng](https://mahmoudyouns22.github.io/destdeng/)** — camera only, nothing installed, nothing uploaded. A browser that has not been taught any signs says so and offers to learn; teaching happens on the page.
 
 **A camera-based sign language recognition system for the Kurdistan Region — turning signs into text, in the language the reader needs.**
 
@@ -231,6 +234,8 @@ signers, and it is the first item on the roadmap for a reason.
 
 ## On the web
 
+**Live: [mahmoudyouns22.github.io/destdeng](https://mahmoudyouns22.github.io/destdeng/)**
+
 The desktop app needs Python, a virtual environment on a supported interpreter, and
 someone willing to press SPACE for every sign. None of that survives contact with a
 hospital desk, so there is a second front end: a static site in [`web/`](web/) that
@@ -298,6 +303,12 @@ committed: [`vercel.json`](vercel.json) and [`netlify.toml`](netlify.toml). Both
 the same three things — serve `web/`, run no build, cache the vendored tracker forever
 and the application code never — so pointing either host at this repository is the
 whole deployment.
+
+It is deployed on GitHub Pages by [`.github/workflows/pages.yml`](.github/workflows/pages.yml),
+which verifies before it publishes: the browser build's own gate tests, the
+Python/JavaScript feature parity check, and that the generated vocabulary is current.
+A build whose refusal gates were never exercised would ship exactly the failure this
+project exists to prevent.
 
 That there is no server is the privacy property, not a convenience. A static site has
 nowhere to send a video of someone's hands, and it cannot quietly become a site that
