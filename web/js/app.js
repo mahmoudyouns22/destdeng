@@ -165,12 +165,14 @@ function paintPanel() {
     ui.panel.dataset.state = "empty";
     ui.panel.setAttribute("dir", "ltr");
     ui.panel.classList.remove("is-arabic");
+    // Two true things, in the order that helps: what does not work yet, and what
+    // does. Saying only the first leaves someone at a desk with nothing.
     ui.panelText.textContent = state.model
       ? "Make a sign — the meaning appears here."
-      : "This browser has not been taught any signs yet.";
+      : "Sign recognition is not trained yet — that work is under way.";
     ui.panelDetail.textContent = state.model
       ? `${state.counts.size} signs known`
-      : "Use the word board to talk now, or teach it signs.";
+      : "The word board works now. Tap here to open it.";
     ui.panelScore.hidden = true;
     return;
   }
@@ -642,8 +644,8 @@ function renderBoard() {
   ui.board.classList.toggle("is-arabic", rtl);
 
   ui.boardLead.textContent =
-    "Tap a word to show it large, then turn the screen around. Nothing here needs " +
-    "the camera or any teaching.";
+    "Every word in all three languages. Tap one to show it large, then turn the " +
+    "screen around. Nothing here needs the camera or any teaching.";
 
   ui.board.innerHTML = "";
   for (const label of Object.keys(VOCABULARY)) {
@@ -655,13 +657,26 @@ function renderBoard() {
     main.className = "word__main";
     main.textContent = toText(label, state.language);
 
-    // The English key underneath, always. The person holding the device may not read
-    // the language they are showing, and needs to know which word they just tapped.
-    const gloss = document.createElement("span");
-    gloss.className = "word__gloss";
-    gloss.textContent = VOCABULARY[label].en;
+    // Every card carries all three languages, not just the chosen one.
+    //
+    // The chosen language is only a guess about who is reading. In a clinic the
+    // person who walks up next reads something else, and a board that shows one
+    // language at a time makes them wait while somebody finds a setting. Showing all
+    // three costs one line of small text and removes the setting from the exchange
+    // entirely: whoever is standing there finds their own script and reads it.
+    const others = document.createElement("span");
+    others.className = "word__others";
+    for (const code of Object.keys(LANGUAGES)) {
+      if (code === state.language) continue;
+      const piece = document.createElement("span");
+      piece.textContent = toText(label, code);
+      piece.lang = code === "ku" ? "ckb" : code;
+      piece.dir = isRtl(code) ? "rtl" : "ltr";
+      if (isRtl(code)) piece.classList.add("is-arabic");
+      others.append(piece);
+    }
 
-    card.append(main, gloss);
+    card.append(main, others);
     card.addEventListener("click", () => showWord(label));
     ui.board.append(card);
   }

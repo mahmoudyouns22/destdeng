@@ -13,7 +13,16 @@
 
 *"Destdeng" — from Kurdish **dest** (hand) and **deng** (voice): giving the hand a voice.*
 
-> **Status:** Working end to end on a small vocabulary. Record signs, train, recognise.
+> **Status — in progress.** The feature pipeline, both refusal gates, the classifier
+> and both front ends are built and tested end to end. The **word board is live and
+> usable today**, in all three languages, with no data of any kind.
+>
+> **What remains is recording the vocabulary, and that is the work now under way.**
+> Kurdish Sign Language has no public dataset — that absence is this project's premise
+> — so the signs have to be recorded by people who sign them. The tooling for it is
+> finished and waiting: a guided session records all fifteen signs in about fifteen
+> minutes, writes them to a file, and committing that file ships a trained system to
+> everyone who opens the site. Nothing else has to change when it lands.
 
 ---
 
@@ -332,8 +341,9 @@ that already works. A file written for an older feature layout is refused rather
 loaded, because scoring old measurements as new ones produces confident nonsense
 rather than worse answers.
 
-**There is no signs file in this repository, and that is deliberate.** One could be
-generated without a camera; it must not be. The samples would be invented numbers and
+**There is no signs file in this repository yet.** It is the piece being worked on,
+and it is deliberately empty rather than filled with something that would look like
+progress. One could be generated without a camera; it must not be. The samples would be invented numbers and
 the result would answer with confident words for gestures that mean nothing — this
 project's one unacceptable failure, in the place least likely to catch it. Synthetic
 data lives in the test suites, labelled as such. The real file comes from someone
@@ -410,8 +420,9 @@ Since no usable ZHK dataset exists publicly, one has to be recorded. This is tre
 - [x] One visual language across every camera screen, and text verified drawable before it ships
 - [x] Browser build with automatic sign segmentation — no install, no button, nothing uploaded
 - [x] A word board that works with no model at all, for the desk that needs help today
+- [ ] **First dataset pass — core vocabulary, multiple signers. In progress: this is
+      the one remaining step between the finished pipeline and a working recogniser**
 - [ ] Body pose alongside hands — sign location relative to the body carries meaning
-- [ ] First dataset pass — core vocabulary, multiple signers
 - [ ] Evaluation on unseen signers (not just unseen recordings)
 - [ ] Verification of the written vocabulary with Kurdish speakers, and of the signs with deaf signers from the Erbil dialect
 - [ ] Field test with deaf users and feedback round
