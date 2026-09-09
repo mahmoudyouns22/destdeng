@@ -7,7 +7,7 @@
 ![Self-test](https://img.shields.io/badge/self--test-11%20checks-3DDC84)
 ![Web self-test](https://img.shields.io/badge/web%20self--test-21%20checks-3DDC84)
 
-**▶ Try it: [mahmoudyouns22.github.io/destdeng](https://mahmoudyouns22.github.io/destdeng/)** — camera only, nothing installed, nothing uploaded. A browser that has not been taught any signs says so and offers to learn; teaching happens on the page.
+**▶ [mahmoudyouns22.github.io/destdeng](https://mahmoudyouns22.github.io/destdeng/)** — nothing installed, nothing uploaded. The **word board** works the moment it opens; sign recognition works once it has been taught.
 
 **A camera-based sign language recognition system for the Kurdistan Region — turning signs into text, in the language the reader needs.**
 
@@ -98,6 +98,29 @@ Two details decide whether the novelty gate is real or decorative:
 ### The refusal must not read as a sign
 
 `Please repeat` is itself a sign in the vocabulary — a deaf person can ask the other party to repeat themselves. So the failure message cannot also be "Please repeat": the reader would have no way to tell *the deaf person asked you to repeat* from *the machine failed*, which is precisely the confident falsehood this project exists to avoid. System messages live in their own table in [`src/vocabulary.py`](src/vocabulary.py), can never be predicted as a label, and say who did not understand.
+
+### The part that works before anything is taught
+
+Recognition needs a trained model, and there is no public dataset for Kurdish Sign
+Language to build one from — that absence is the whole premise of this project, not a
+gap in it. A recognition system with no data recognises nothing, and a page that
+recognises nothing helps nobody standing at a desk today.
+
+So the site does not lead with the thing that needs data. It also carries a **word
+board**: every sign in the vocabulary as a card, tapped to fill the screen, with the
+other two languages underneath. Tap `نەخۆشخانە`, turn the screen around, and the
+doctor reads *Hospital* or *مستشفى* without anyone changing a setting.
+
+This is not a placeholder for the real feature. It addresses the same problem the
+project exists for — a deaf person and a clerk who read different scripts, with no
+interpreter in the building — and it is what people already improvise with pen and
+paper. The difference is that the writer does not have to know the reader's script.
+It needs no camera, no teaching, and no model.
+
+The system messages are deliberately absent from it. "I did not understand" is
+something the *system* says about itself, and a person tapping it would be saying
+something they did not mean — the same separation `src/vocabulary.py` keeps, for the
+same reason.
 
 ### The interface is part of the guarantee
 
@@ -205,6 +228,7 @@ Full instructions and troubleshooting: [`SETUP.md`](SETUP.md).
 | `web/` | The browser build: same pipeline, same refusal, no Python and no button |
 | `web/js/segment.js` | Decides when a sign starts and stops, so nothing has to be pressed |
 | `web/js/bundle.js` | Reads and writes the signs file, so a taught session survives the browser |
+| `web/model/` | Where a recorded signs file goes to ship with the site. Empty on purpose — see its README |
 | `tools/check_parity.py` | Runs both feature pipelines on the same inputs and fails on any difference |
 | `tools/test_web.mjs` | The web build's own 17 checks — its gates are asserted, not assumed |
 
@@ -385,6 +409,7 @@ Since no usable ZHK dataset exists publicly, one has to be recorded. This is tre
 - [x] Self-test that runs without a camera
 - [x] One visual language across every camera screen, and text verified drawable before it ships
 - [x] Browser build with automatic sign segmentation — no install, no button, nothing uploaded
+- [x] A word board that works with no model at all, for the desk that needs help today
 - [ ] Body pose alongside hands — sign location relative to the body carries meaning
 - [ ] First dataset pass — core vocabulary, multiple signers
 - [ ] Evaluation on unseen signers (not just unseen recordings)

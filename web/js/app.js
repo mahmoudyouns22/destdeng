@@ -68,6 +68,7 @@ const ui = {
     language: el("screen-language"),
     live: el("screen-live"),
     teach: el("screen-teach"),
+    board: el("screen-board"),
   },
   status: el("status"),
   langs: el("langs"),
@@ -93,6 +94,12 @@ const ui = {
   sessionFill: el("session-fill"),
   sessionCount: el("session-count"),
   sessionAdvice: el("session-advice"),
+  board: el("board"),
+  boardLead: el("board-lead"),
+  boardLangs: el("board-langs"),
+  boardShow: el("board-show"),
+  showWord: el("show-word"),
+  showOther: el("show-other"),
   teachBar: el("teach-bar"),
   fault: el("fault"),
   faultTitle: el("fault-title"),
@@ -143,7 +150,7 @@ function paintPanel() {
       : "This browser has not been taught any signs yet.";
     ui.panelDetail.textContent = state.model
       ? `${state.counts.size} signs known`
-      : "Open “Teach signs” to start.";
+      : "Use the word board to talk now, or teach it signs.";
     ui.panelScore.hidden = true;
     return;
   }
@@ -167,24 +174,28 @@ function paintPanel() {
 
 function setLanguage(language) {
   state.language = language;
-  for (const button of ui.langs.querySelectorAll("button")) {
+  for (const button of document.querySelectorAll("#langs button, #board-langs button")) {
     button.setAttribute("aria-pressed", String(button.dataset.language === language));
   }
   paintPanel();
+  renderBoard();
+  if (state.session) renderSession();
 }
 
 function buildLanguageButtons() {
   const native = { en: "EN", ar: "ع", ku: "کو" };
-  ui.langs.innerHTML = "";
-  for (const [code, name] of Object.entries(LANGUAGES)) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.language = code;
-    button.textContent = native[code] ?? code.toUpperCase();
-    button.title = name;
-    button.setAttribute("aria-label", name);
-    button.addEventListener("click", () => setLanguage(code));
-    ui.langs.append(button);
+  for (const host of [ui.langs, ui.boardLangs]) {
+    host.innerHTML = "";
+    for (const [code, name] of Object.entries(LANGUAGES)) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.language = code;
+      button.textContent = native[code] ?? code.toUpperCase();
+      button.title = name;
+      button.setAttribute("aria-label", name);
+      button.addEventListener("click", () => setLanguage(code));
+      host.append(button);
+    }
   }
 }
 
@@ -580,6 +591,78 @@ function renderSession() {
 }
 
 
+
+/* ------------------------------------------------------------------ *
+ * the word board — the part that works before anything is taught       *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every sign as a word the reader can be shown directly.
+ *
+ * Recognition needs a trained model, and there is no public dataset for Kurdish Sign
+ * Language to build one from. This needs nothing, and it addresses the same problem:
+ * a deaf person and a clerk who read different scripts, with no interpreter in the
+ * building. Tap a word, turn the screen around. People already do this with pen and
+ * paper; the difference is that the reader gets it in the script they actually read,
+ * and the writer does not have to know that script.
+ *
+ * MESSAGES are deliberately absent. "I did not understand" is something the SYSTEM
+ * says about itself, and a person tapping it would be saying something they did not
+ * mean. The separation is the same one src/vocabulary.py keeps for the same reason.
+ */
+function renderBoard() {
+  if (!ui.board) return;
+
+  const rtl = isRtl(state.language);
+  ui.board.setAttribute("dir", rtl ? "rtl" : "ltr");
+  ui.board.lang = state.language === "ku" ? "ckb" : state.language;
+  ui.board.classList.toggle("is-arabic", rtl);
+
+  ui.boardLead.textContent =
+    "Tap a word to show it large, then turn the screen around. Nothing here needs " +
+    "the camera or any teaching.";
+
+  ui.board.innerHTML = "";
+  for (const label of Object.keys(VOCABULARY)) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "word";
+
+    const main = document.createElement("span");
+    main.className = "word__main";
+    main.textContent = toText(label, state.language);
+
+    // The English key underneath, always. The person holding the device may not read
+    // the language they are showing, and needs to know which word they just tapped.
+    const gloss = document.createElement("span");
+    gloss.className = "word__gloss";
+    gloss.textContent = VOCABULARY[label].en;
+
+    card.append(main, gloss);
+    card.addEventListener("click", () => showWord(label));
+    ui.board.append(card);
+  }
+}
+
+function showWord(label) {
+  const rtl = isRtl(state.language);
+
+  ui.showWord.textContent = toText(label, state.language);
+  ui.showWord.lang = state.language === "ku" ? "ckb" : state.language;
+  ui.showWord.dir = rtl ? "rtl" : "ltr";
+  ui.showWord.classList.toggle("is-arabic", rtl);
+
+  // The other two languages underneath, smaller. Which language the reader actually
+  // reads is not always the one that was chosen at the door, and a second person
+  // arriving should not need anyone to change a setting.
+  const others = Object.keys(LANGUAGES)
+    .filter((code) => code !== state.language)
+    .map((code) => toText(label, code));
+  ui.showOther.textContent = others.join("   ·   ");
+
+  ui.boardShow.hidden = false;
+}
+
 /* ------------------------------------------------------------------ *
  * wiring                                                              *
  * ------------------------------------------------------------------ */
@@ -620,6 +703,7 @@ async function enter(language) {
   await refreshTaught();
   await rebuildModel();
   paintPanel();
+  renderBoard();
   loop();
 }
 
@@ -632,6 +716,15 @@ function wire() {
       button.addEventListener("click", () => enter(button.dataset.language));
     }
   }
+
+  el("btn-board").addEventListener("click", () => {
+    renderBoard();
+    show("board");
+  });
+
+  el("btn-board-back").addEventListener("click", () => show("live"));
+
+  ui.boardShow.addEventListener("click", () => { ui.boardShow.hidden = true; });
 
   el("btn-teach").addEventListener("click", async () => {
     show("teach");
@@ -700,10 +793,13 @@ function wire() {
 
   // The panel is the obvious place to press when nothing has been taught, and on a
   // narrow screen the header button is hidden.
-  ui.panel.addEventListener("click", async () => {
+  // Tapping the panel when nothing is taught opens the board rather than the teaching
+  // screen: it is the thing that works right now, and a screen that cannot answer
+  // should hand over to one that can.
+  ui.panel.addEventListener("click", () => {
     if (state.model) return;
-    show("teach");
-    await refreshTaught();
+    renderBoard();
+    show("board");
   });
 }
 

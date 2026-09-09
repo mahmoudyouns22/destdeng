@@ -65,6 +65,7 @@
     <div class="bar__right">
       <span id="status" class="status" data-state="idle"><i></i><b>Starting…</b></span>
       <div class="langs" id="langs" role="group" aria-label="Output language"></div>
+      <button id="btn-board" class="ghost" type="button">Word board</button>
       <button id="btn-teach" class="ghost" type="button">Teach signs</button>
     </div>
   </header>
@@ -167,6 +168,40 @@
     </aside>
   </div>
 </section>
+
+
+<!-- ============================================================ -->
+<!-- 4. The word board.                                           -->
+<!--                                                              -->
+<!--    Recognition needs a trained model. This does not, and it  -->
+<!--    solves the same problem the project exists for: a deaf    -->
+<!--    person and someone who reads a different script, with no  -->
+<!--    interpreter. Tap a word, turn the screen around. It is    -->
+<!--    what people already do with pen and paper, except that    -->
+<!--    the reader gets it in the language they actually read.    -->
+<!-- ============================================================ -->
+<section id="screen-board" class="screen screen--stage" hidden>
+  <header class="bar">
+    <div class="mark mark--small">
+      <span class="mark__dot"></span>
+      <span class="mark__name">Word board</span>
+    </div>
+    <div class="bar__right">
+      <div class="langs" id="board-langs" role="group" aria-label="Output language"></div>
+      <button id="btn-board-back" class="ghost" type="button">Back</button>
+    </div>
+  </header>
+
+  <p class="board__lead" id="board-lead"></p>
+  <div class="board" id="board"></div>
+</section>
+
+<!-- Tapped word, filling the screen so it can be read across a desk. -->
+<div id="board-show" class="show" hidden>
+  <p class="show__word" id="show-word"></p>
+  <p class="show__other" id="show-other"></p>
+  <p class="show__close">tap anywhere to go back</p>
+</div>
 
 
 <!-- Blocking problems: no camera, no permission, an old browser. -->
