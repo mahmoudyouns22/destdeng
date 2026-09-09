@@ -1,0 +1,80 @@
+# Publish the browser build to GitHub Pages.
+#
+# There is nothing to compile: web/ is static files that run in the visitor's browser.
+# This workflow only copies that folder to Pages, so "the build" cannot drift from
+# what was tested locally — the bytes served are the bytes in the repository.
+#
+# The desktop app is untouched by this. It stays a Python program you run yourself.
+
+name: Deploy the web build to Pages
+
+on:
+  push:
+    branches: [main]
+    # Only when something the site actually serves has changed. A README edit does
+    # not need a deployment, and a queue of no-op deployments makes a real one hard
+    # to find when something breaks.
+    paths:
+      - "web/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never two deployments at once, and never cancel one that is already running: a
+# half-published site is worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install what the checks need
+        run: pip install "numpy==1.26.4" "scikit-learn==1.5.2"
+
+      # The refusal gates are the reason this project exists. Publishing a build whose
+      # gates have not been exercised would ship the one failure it is designed to
+      # prevent.
+      - name: The web build's own checks
+        run: node tools/test_web.mjs
+
+      # A feature vector built differently by the two implementations is not a worse
+      # input, it is a meaningless one scored with confidence.
+      - name: Python and JavaScript feature pipelines agree
+        run: python tools/check_parity.py
+
+      # The vocabulary is generated from src/vocabulary.py. A stale copy would show a
+      # sign correctly on the desktop and wrongly on the web, in a language the person
+      # maintaining it may not read.
+      - name: Generated vocabulary is current
+        run: python tools/export_vocabulary.py --check
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
