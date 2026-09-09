@@ -1,0 +1,21 @@
+# Python 3.10 - 3.12 required. MediaPipe 0.10.14 has no wheels for 3.13+, and pip
+# reports that as "no matching distribution" rather than as a Python version problem.
+# See SETUP.md step 1.
+
+# --- feature pipeline, training, and the self-test --------------------------
+# tests/test_pipeline.py needs only these two, so the logic stays verifiable on a
+# machine where the vision stack below will not install.
+numpy==1.26.4
+scikit-learn==1.5.2
+joblib==1.4.2
+
+# --- camera and hand tracking ----------------------------------------------
+opencv-python==4.10.0.84
+mediapipe==0.10.14
+
+# --- displaying Arabic and Kurdish text on the video window ----------------
+# Without these the program still runs; it reports what is missing at startup and
+# non-Latin output degrades instead of crashing.
+Pillow==10.4.0
+arabic-reshaper==3.0.0
+python-bidi==0.6.0

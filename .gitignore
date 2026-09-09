@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Recordings of real people.
+data/
+*.npy
+*.mp4
+
+# The trained model is NOT a safe substitute for withholding the data: the novelty
+# check stores a reduced projection of the training set inside this file.
+models/
+*.pkl
+
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
