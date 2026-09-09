@@ -96,6 +96,67 @@ Two details decide whether the novelty gate is real or decorative:
 
 `Please repeat` is itself a sign in the vocabulary — a deaf person can ask the other party to repeat themselves. So the failure message cannot also be "Please repeat": the reader would have no way to tell *the deaf person asked you to repeat* from *the machine failed*, which is precisely the confident falsehood this project exists to avoid. System messages live in their own table in [`src/vocabulary.py`](src/vocabulary.py), can never be predicted as a label, and say who did not understand.
 
+### The interface is part of the guarantee
+
+The person reading this screen is usually a stranger to it — a doctor, a clerk, an
+officer — with a deaf person waiting in front of them. They get one glance to find the
+answer and to judge whether the machine is sure. So the interface carries the same rule
+as the classifier, and `src/theme.py` holds the palette, panels, chips and meters that
+every camera screen is built from, instead of each screen drawing its own.
+
+- **Accepted and refused never share a colour.** A recognised sign is white on a teal
+  rule; a refusal is amber on an amber rule, and the confidence meter is withheld
+  rather than shown low — a short bar next to a refusal invites the reader to treat a
+  rejected guess as a weak answer, which is exactly the reading the project exists to
+  prevent. That distinction survives not being able to read the script the message is
+  written in.
+- **Nothing is positioned by a magic number.** Every element is placed from the frame's
+  real width and height, so the layout holds from a 640×480 webcam to 1080p and on a
+  phone held in portrait. The countdown used to be drawn at a fixed `(280, 260)`, which
+  is centred on exactly one camera resolution.
+- **Long output shrinks to fit.** A recognised sign is one short word; a refusal is a
+  whole sentence, and the Kurdish one is the longest string the panel ever shows.
+  Overflowing an RTL line cuts it off at the *left* edge — the end of the sentence — so
+  the reader sees a message that looks complete and is not.
+- **The output follows the language, not the moment it was read.** The result is kept
+  as a label rather than as rendered text, so pressing `2` after a sign has been read
+  re-renders it in Arabic. At a hospital desk the person pressing the key is often not
+  the person who has to read the word.
+- **The state the signer can act on is the state on screen.** "No hands in frame" is
+  the most common reason a capture fails and the one thing they can fix before pressing
+  SPACE, so it is in the top bar rather than discovered after a failed reading.
+- **The menu knows what you have not done yet.** It reads `data/` and `models/` each
+  time it draws, dims the steps that cannot work, and names the next one worth doing —
+  because choosing "recognise" before "train" otherwise produces a missing-file error
+  that reads like a broken install rather than a skipped step. It degrades to plain
+  ASCII when the terminal has no colour, and honours `NO_COLOR`.
+
+### The Kurdish that renders is not the Kurdish you typed
+
+Pillow cannot shape Arabic script by itself, so the text is reshaped first and the
+letters' joined forms are what reach the font. That indirection hides a trap worth
+naming, because it produced broken Kurdish while every check in the project passed.
+
+`arabic-reshaper` has a Kurdish mode, and switching it on looks obviously correct.
+It is not: **ە ڵ ێ have no Unicode presentation forms at all**, so the library emits
+*private-use* codepoints for them — slots that are empty in every ordinary font.
+Tahoma, Segoe UI and Arial all draw them as hollow boxes. سڵاو came out perfectly and
+تێنەگەیشتم came out as `ت□نە□گە□یشتم`: the message shown when the system has **not**
+understood, rendered unreadably, for the reader least able to check it.
+
+A font-coverage check was already in place and did not catch it, for a reason that
+generalises past this bug: **it tested the raw letters.** Every candidate font
+contains all 42 characters the vocabulary uses. What the font is asked for is the
+reshaper's *output*, and nothing was testing that.
+
+So the font and the shaping mode are now chosen together, by rendering a probe built
+from the real vocabulary and comparing pixels — Kurdish mode if some font can draw its
+private-use slots, the standard mode otherwise, unshaped before boxes, and the choice
+is named in the startup line rather than assumed. Install a Kurdish font that fills
+those slots, add it to `FONT_CANDIDATES`, and the better typography is picked up with
+no other change. The self-test asserts that nothing on screen is undrawable, so this
+cannot come back quietly.
+
 ## Running it
 
 ```
@@ -141,31 +202,28 @@ Full instructions and troubleshooting: [`SETUP.md`](SETUP.md).
 
 `data/` and `models/` are both gitignored, and the second matters more than it looks: the novelty check carries a compressed projection of the training set inside the model file, so excluding `data/` while publishing `models/` would hand over the recordings anyway.
 
-### The Kurdish that renders is not the Kurdish you typed
+## What this version fixed
 
-Pillow cannot shape Arabic script by itself, so the text is reshaped first and the
-letters' joined forms are what reach the font. That indirection hides a trap worth
-naming, because it produced broken Kurdish while every check in the project passed.
+Each of these was found by running the thing rather than by reading it, and each was
+silent — the program reported success in every case.
 
-`arabic-reshaper` has a Kurdish mode, and switching it on looks obviously correct.
-It is not: **ە ڵ ێ have no Unicode presentation forms at all**, so the library emits
-*private-use* codepoints for them — slots that are empty in every ordinary font.
-Tahoma, Segoe UI and Arial all draw them as hollow boxes. سڵاو came out perfectly and
-تێنەگەیشتم came out as `ت□نە□گە□یشتم`: the message shown when the system has **not**
-understood, rendered unreadably, for the reader least able to check it.
+| Fixed | Why it mattered |
+|---|---|
+| Kurdish shaping emitted **private-use codepoints** for ە ڵ ێ, which no ordinary font contains | `تێنەگەیشتم` rendered as `ت□نە□گە□یشتم` — in the message shown when the system had **not** understood, to the reader least able to catch it |
+| Font coverage was tested against the **raw letters**, not the shaped output | Every candidate font passed the check and still drew boxes. The check now renders the real vocabulary, shaped, and compares pixels |
+| Two samples recorded in the same second **overwrote** each other | `cv2.waitKey` returns early on a keypress, so the countdown is not a guaranteed second. The counter still said 30 while the folder held 29 |
+| The countdown was drawn at a hardcoded `(280, 260)` | Centred on a 640×480 camera and off-centre on every other one |
+| The key legend printed **over** the result line | Both were positioned from the bottom of the frame independently, and disagreed |
+| Right-to-left text drew **off-screen** when Pillow was missing | An RTL caller passes the right edge as x; the fallback drew left-to-right from it. It now right-aligns, and shows `Supas` rather than `??????`, because `cv2.putText` has no glyph outside ASCII |
+| Changing the output language left the **previous language** on screen | The result is now kept as a label and re-rendered, so pressing `2` after reading a sign shows it in Arabic |
 
-A font-coverage check was already in place and did not catch it, for a reason that
-generalises past this bug: **it tested the raw letters.** Every candidate font
-contains all 42 characters the vocabulary uses. What the font is asked for is the
-reshaper's *output*, and nothing was testing that.
-
-So the font and the shaping mode are now chosen together, by rendering a probe built
-from the real vocabulary and comparing pixels — Kurdish mode if some font can draw its
-private-use slots, the standard mode otherwise, unshaped before boxes, and the choice
-is named in the startup line rather than assumed. Install a Kurdish font that fills
-those slots, add it to `FONT_CANDIDATES`, and the better typography is picked up with
-no other change. The self-test asserts that nothing on screen is undrawable, so this
-cannot come back quietly.
+**How it was checked.** The eleven self-test checks, plus a full train → save → load →
+decide cycle on synthetic data, plus the recognition screen rendered at six
+resolutions — 640×480, 1280×720, 1920×1080 and three phone portrait sizes — in all
+three languages, for an accepted sign, a refusal and an idle screen, and inspected.
+The camera and recording screens were rendered the same way. What is *not* verified
+here is recognition accuracy on real signing: that needs a recorded dataset and deaf
+signers, and it is the first item on the roadmap for a reason.
 
 ## Scope — Version 1
 
@@ -203,6 +261,7 @@ Since no usable ZHK dataset exists publicly, one has to be recorded. This is tre
 - [x] Baseline classifier + two-gate refusal (novelty and probability)
 - [x] Three-language output layer, Kurdish in the script its readers use
 - [x] Self-test that runs without a camera
+- [x] One visual language across every camera screen, and text verified drawable before it ships
 - [ ] Body pose alongside hands — sign location relative to the body carries meaning
 - [ ] First dataset pass — core vocabulary, multiple signers
 - [ ] Evaluation on unseen signers (not just unseen recordings)
