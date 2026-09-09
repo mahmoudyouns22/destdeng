@@ -1,0 +1,28 @@
+DESTDENG
+Copyright 2026 Mahmoud Youns Mahmoud
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+---
+
+Third-party components redistributed in this repository:
+
+  web/vendor/  —  MediaPipe Tasks for Web, and the hand landmarker model
+                  Copyright Google LLC, Apache License 2.0
+                  https://github.com/google-ai-edge/mediapipe
+
+They are vendored rather than loaded from a CDN so the site works on a filtered or
+unreliable connection, and so the tracker cannot change underneath a trained model.
+
+---
+
+A note that is not a licence term, because a licence cannot carry it.
+
+This project recognises Kurdish Sign Language. The signs, and the written words they
+map to, have to be validated with deaf signers of the dialect they are meant for and
+with Kurdish speakers — not taken from a dictionary, and not assumed correct because
+the code is. A wrong translation asserted confidently is the harm this project is
+built to avoid, and no amount of testing on this side of the camera can rule it out.
+
+Recordings of a person's hands are theirs. If you publish a signs file, publish one
+whose signers agreed to it.

@@ -4,6 +4,7 @@
 ![CPU only](https://img.shields.io/badge/runs%20on-CPU%20only-4ECDC4)
 ![Offline](https://img.shields.io/badge/network-not%20required-4ECDC4)
 ![Output languages](https://img.shields.io/badge/output-English%20%C2%B7%20Arabic%20%C2%B7%20Kurdish-4ECDC4)
+![Licence](https://img.shields.io/badge/licence-Apache%202.0-4ECDC4)
 ![Self-test](https://img.shields.io/badge/self--test-11%20checks-3DDC84)
 ![Web self-test](https://img.shields.io/badge/web%20self--test-21%20checks-3DDC84)
 
@@ -448,6 +449,16 @@ The trained model is **not** a safe stand-in for withholding the data. Its novel
 
 **Mahmoud Youns**
 [github.com/mahmoudyouns22](https://github.com/mahmoudyouns22)
+
+## Licence
+
+[Apache License 2.0](LICENSE) — use it, change it, ship it, including commercially;
+keep the notice and state what you changed.
+
+[`NOTICE`](NOTICE) carries one thing a licence cannot: the signs and the written words
+in this vocabulary still have to be validated with deaf signers of the dialect and with
+Kurdish speakers. Code review cannot substitute for that, and a confident wrong
+translation is the harm this project exists to avoid.
 
 ## Sources
 
