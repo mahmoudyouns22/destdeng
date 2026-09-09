@@ -115,25 +115,54 @@
     </div>
 
     <aside class="teach__side">
-      <label class="field">
-        <span class="field__label">Which sign?</span>
-        <select id="teach-label" class="field__input"></select>
-      </label>
+      <!-- The guided session. Teaching fifteen signs one dropdown selection at a
+           time is a chore nobody finishes, and a half-taught vocabulary is worse
+           than none: the classifier can only ever answer with a sign it was shown,
+           so every missing sign becomes a confident wrong one. -->
+      <div id="session-idle">
+        <button id="btn-session" class="primary" type="button">Teach every sign</button>
+        <p class="teach__advice" id="teach-advice"></p>
+      </div>
 
-      <button id="btn-record" class="primary" type="button">Record one sample</button>
+      <div id="session-live" hidden>
+        <p class="session__step" id="session-step"></p>
+        <p class="session__sign" id="session-sign"></p>
+        <p class="session__gloss" id="session-gloss"></p>
+        <div class="session__bar"><i id="session-fill"></i></div>
+        <p class="session__count" id="session-count"></p>
+        <div class="session__buttons">
+          <button id="btn-skip" class="ghost" type="button">Skip this sign</button>
+          <button id="btn-stop" class="ghost" type="button">Stop</button>
+        </div>
+        <p class="teach__advice" id="session-advice"></p>
+      </div>
 
-      <p class="teach__advice" id="teach-advice"></p>
+      <details class="teach__one">
+        <summary>Teach one sign on its own</summary>
+        <label class="field">
+          <span class="field__label">Which sign?</span>
+          <select id="teach-label" class="field__input"></select>
+        </label>
+        <button id="btn-record" class="ghost wide" type="button">Record one sample</button>
+      </details>
 
       <h2 class="teach__heading">Taught on this device</h2>
       <ul id="teach-list" class="taught"></ul>
 
       <div class="teach__actions">
-        <button id="btn-forget" class="danger ghost" type="button">Forget everything</button>
+        <!-- Signs taught here are worth more than the time they cost, and they only
+             exist in one browser until they are written to a file. -->
+        <button id="btn-save" class="ghost wide" type="button">Save signs to a file</button>
+        <label class="ghost wide file">
+          Load a signs file
+          <input id="file-load" type="file" accept="application/json,.json" hidden>
+        </label>
+        <button id="btn-forget" class="danger ghost wide" type="button">Forget everything</button>
       </div>
 
       <p class="fineprint">
         Samples stay in this browser. Nothing is uploaded, and clearing your
-        browser data deletes them.
+        browser data deletes them — save them to a file first.
       </p>
     </aside>
   </div>

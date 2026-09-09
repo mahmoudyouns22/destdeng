@@ -5,7 +5,7 @@
 ![Offline](https://img.shields.io/badge/network-not%20required-4ECDC4)
 ![Output languages](https://img.shields.io/badge/output-English%20%C2%B7%20Arabic%20%C2%B7%20Kurdish-4ECDC4)
 ![Self-test](https://img.shields.io/badge/self--test-11%20checks-3DDC84)
-![Web self-test](https://img.shields.io/badge/web%20self--test-17%20checks-3DDC84)
+![Web self-test](https://img.shields.io/badge/web%20self--test-21%20checks-3DDC84)
 
 **▶ Try it: [mahmoudyouns22.github.io/destdeng](https://mahmoudyouns22.github.io/destdeng/)** — camera only, nothing installed, nothing uploaded. A browser that has not been taught any signs says so and offers to learn; teaching happens on the page.
 
@@ -204,6 +204,7 @@ Full instructions and troubleshooting: [`SETUP.md`](SETUP.md).
 | `src/mp_compat.py` | Fails with a useful message if MediaPipe is the wrong version |
 | `web/` | The browser build: same pipeline, same refusal, no Python and no button |
 | `web/js/segment.js` | Decides when a sign starts and stops, so nothing has to be pressed |
+| `web/js/bundle.js` | Reads and writes the signs file, so a taught session survives the browser |
 | `tools/check_parity.py` | Runs both feature pipelines on the same inputs and fails on any difference |
 | `tools/test_web.mjs` | The web build's own 17 checks — its gates are asserted, not assumed |
 
@@ -244,7 +245,7 @@ does the whole thing in a browser.
 ```
 web/                      open index.html from any static host
 tools/check_parity.py     proves the two feature pipelines agree
-tools/test_web.mjs        the browser build's 17 checks — node, no browser needed
+tools/test_web.mjs        the browser build's 21 checks — node, no browser needed
 ```
 
 **What it does differently, and why**
@@ -289,6 +290,31 @@ one. So [`web/js/features.js`](web/js/features.js) is a port held to numerical
 equality, and `tools/check_parity.py` runs both on the same awkward inputs — empty
 windows, single frames, hands with no handedness, both hands claiming the same side —
 and fails on any difference beyond float32 rounding.
+
+**Teaching it is a guided run, not a chore.** *Teach signs → Teach every sign* walks
+the whole vocabulary in order, showing each word in the language chosen on the way in,
+and records continuously — make the sign, lower your hands, it saves and moves on.
+Twelve samples per sign, resumable: signs that already have enough are stepped over,
+so an interrupted session picks up where it stopped rather than starting again. This
+matters more than convenience. A half-taught vocabulary is worse than an empty one,
+because the classifier can only ever answer with a sign it was shown, so every missing
+sign becomes a confident wrong one.
+
+**A taught session can leave the browser.** *Save signs to a file* writes the raw
+landmark sequences — the same thing `record_dataset.py` stores, for the same reason:
+the feature pipeline will change and recordings are expensive to collect again. Commit
+that file as [`web/model/signs.json`](web/model/) and every visitor arrives at a system
+that already works. A file written for an older feature layout is refused rather than
+loaded, because scoring old measurements as new ones produces confident nonsense
+rather than worse answers.
+
+**There is no signs file in this repository, and that is deliberate.** One could be
+generated without a camera; it must not be. The samples would be invented numbers and
+the result would answer with confident words for gestures that mean nothing — this
+project's one unacceptable failure, in the place least likely to catch it. Synthetic
+data lives in the test suites, labelled as such. The real file comes from someone
+signing in front of a camera, and the signs need validating with deaf signers of the
+dialect. See [`web/model/README.md`](web/model/).
 
 **Nothing is uploaded.** There is no server: the tracker is WebAssembly served from
 the site, the model is fitted in the page, and taught samples stay in that browser.

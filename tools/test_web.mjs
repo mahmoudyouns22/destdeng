@@ -22,6 +22,7 @@ const feat = await import(web("features.js"));
 const clf = await import(web("classifier.js"));
 const vocab = await import(web("vocabulary.js"));
 const seg = await import(web("segment.js"));
+const bundle = await import(web("bundle.js"));
 
 /* --- a deterministic normal generator, so a failure is reproducible --- */
 
@@ -295,6 +296,77 @@ check("a second sign cannot start during the cooldown", () => {
   clock.t += seg.COOLDOWN_MS + 1;
   for (let i = 0; i < seg.ENTER_FRAMES; i++) s.push(HAND, 1);
   assert(s.state === "capturing", "the segmenter never recovered after the cooldown");
+});
+
+/* --- the signs file: taught signs must survive leaving the browser --- */
+
+function someSamples() {
+  const bases = { hello: makeBase(), water: makeBase() };
+  const out = [];
+  for (const [label, base] of Object.entries(bases)) {
+    for (let i = 0; i < 3; i++) out.push({ label, sequence: makeSample(base) });
+  }
+  return out;
+}
+
+check("a signs file survives a round trip exactly", () => {
+  const original = someSamples();
+  const back = bundle.decode(bundle.encode(original, "test"));
+
+  assert(back.length === original.length,
+    `wrote ${original.length} samples, read ${back.length}`);
+
+  for (let i = 0; i < original.length; i++) {
+    assert(back[i].label === original[i].label, `label ${i} changed`);
+    assert(back[i].sequence.length === original[i].sequence.length,
+      `sample ${i}: ${original[i].sequence.length} frames became ${back[i].sequence.length}`);
+    for (let r = 0; r < original[i].sequence.length; r++) {
+      for (let c = 0; c < feat.FRAME_FEATURES; c++) {
+        // Exact, not close: the bytes of a Float32Array go through base64 unchanged,
+        // and anything less would mean a model taught here scores differently there.
+        assert(back[i].sequence[r][c] === original[i].sequence[r][c],
+          `sample ${i} frame ${r} column ${c} changed in transit`);
+      }
+    }
+  }
+});
+
+check("a file from an older feature layout is refused, not loaded", () => {
+  const written = bundle.encode(someSamples());
+  written.featureVersion = feat.FEATURE_VERSION - 1;
+
+  let refused = false;
+  try { bundle.decode(written); } catch { refused = true; }
+  assert(refused,
+    "loaded a file written for an older layout — old columns would be scored as new");
+});
+
+check("a damaged or foreign file is refused", () => {
+  for (const [name, object] of [
+    ["not a signs file", { format: "something-else", samples: [] }],
+    ["no samples", { ...bundle.encode(someSamples()), samples: [] }],
+    ["truncated sample", (() => {
+      const w = bundle.encode(someSamples());
+      w.samples[0].rows += 5;                    // claims more frames than it holds
+      return w;
+    })()],
+  ]) {
+    let refused = false;
+    try { bundle.decode(object); } catch { refused = true; }
+    assert(refused, `accepted a file that was ${name}`);
+  }
+});
+
+check("a round-tripped sample produces the same feature vector", () => {
+  const original = someSamples();
+  const back = bundle.decode(bundle.encode(original));
+  for (let i = 0; i < original.length; i++) {
+    const a = feat.sequenceFeatures(original[i].sequence);
+    const b = feat.sequenceFeatures(back[i].sequence);
+    for (let j = 0; j < a.length; j++) {
+      assert(a[j] === b[j], `sample ${i}: feature ${j} differs after a round trip`);
+    }
+  }
 });
 
 /* --- runner --- */

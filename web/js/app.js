@@ -36,6 +36,7 @@ import { HandLandmarker, FilesetResolver, DrawingUtils }
   from "../vendor/vision_bundle.js";
 import { frameFeatures, sequenceFeatures } from "./features.js";
 import { fit, decide } from "./classifier.js";
+import * as bundle from "./bundle.js";
 import * as store from "./storage.js";
 import { Segmenter } from "./segment.js";
 import { LANGUAGES, VOCABULARY, isRtl, message, toText } from "./vocabulary.js";
@@ -55,6 +56,8 @@ const state = {
   stream: null,
   screen: "language",
   teaching: null,        // label awaiting one sample, or null
+  shipped: [],           // signs committed alongside the site; never edited here
+  session: null,         // a guided run through the whole vocabulary
   lastReading: null,     // { accepted, key, detail, probability }
   counts: new Map(),
 };
@@ -82,6 +85,14 @@ const ui = {
   teachLabel: el("teach-label"),
   teachAdvice: el("teach-advice"),
   teachList: el("teach-list"),
+  sessionIdle: el("session-idle"),
+  sessionLive: el("session-live"),
+  sessionStep: el("session-step"),
+  sessionSign: el("session-sign"),
+  sessionGloss: el("session-gloss"),
+  sessionFill: el("session-fill"),
+  sessionCount: el("session-count"),
+  sessionAdvice: el("session-advice"),
   teachBar: el("teach-bar"),
   fault: el("fault"),
   faultTitle: el("fault-title"),
@@ -130,7 +141,9 @@ function paintPanel() {
     ui.panelText.textContent = state.model
       ? "Make a sign — the meaning appears here."
       : "This browser has not been taught any signs yet.";
-    ui.panelDetail.textContent = state.model ? "" : "Open “Teach signs” to start.";
+    ui.panelDetail.textContent = state.model
+      ? `${state.counts.size} signs known`
+      : "Open “Teach signs” to start.";
     ui.panelScore.hidden = true;
     return;
   }
@@ -260,8 +273,22 @@ async function handleWindow(window) {
   if (state.screen === "teach") {
     if (!state.teaching) return;
     const label = state.teaching;
-    state.teaching = null;
     await store.add(label, window);
+
+    if (state.session) {
+      // Stay armed. Re-arming by hand after every sample is what turns teaching a
+      // vocabulary into a chore nobody finishes; the segmenter's own cooldown is
+      // already the pause between one sample and the next.
+      state.session.done += 1;
+      state.counts.set(label, (state.counts.get(label) ?? 0) + 1);
+      renderTaughtList();
+
+      if (state.session.done >= state.session.target) advanceSession();
+      else renderSession();
+      return;
+    }
+
+    state.teaching = null;
     await refreshTaught();
     await rebuildModel();
     setStatus(ui.teachStatus, "live", "Saved");
@@ -361,13 +388,20 @@ function loop() {
  * teaching                                                            *
  * ------------------------------------------------------------------ */
 
+// How many samples one sign gets in a guided run. Twelve is a compromise found by
+// what people will actually sit through: fewer and the novelty gate refuses honest
+// signing, many more and the session is abandoned half-taught — which is worse than
+// not starting, because a classifier can only ever answer with a sign it was shown,
+// so every missing sign becomes a confident wrong one.
+const SAMPLES_PER_SIGN = 12;
+
 function advise(text, tone = "") {
   ui.teachAdvice.textContent = text;
   ui.teachAdvice.dataset.tone = tone;
 }
 
-async function refreshTaught() {
-  state.counts = await store.counts();
+/** Redraw the list from state.counts, without touching the database. */
+function renderTaughtList() {
   ui.teachList.innerHTML = "";
 
   if (state.counts.size === 0) {
@@ -375,18 +409,34 @@ async function refreshTaught() {
     empty.className = "empty";
     empty.textContent = "Nothing taught yet";
     ui.teachList.append(empty);
-  } else {
-    for (const [label, count] of [...state.counts].sort()) {
-      const row = document.createElement("li");
-      const name = document.createElement("span");
-      name.textContent = `${label} — ${toText(label, state.language)}`;
-      const tally = document.createElement("span");
-      tally.className = count < 8 ? "count thin" : "count";
-      tally.textContent = `${count}`;
-      row.append(name, tally);
-      ui.teachList.append(row);
-    }
+    return;
   }
+
+  for (const [label, count] of [...state.counts].sort()) {
+    const row = document.createElement("li");
+    const name = document.createElement("span");
+    name.textContent = `${label} — ${toText(label, state.language)}`;
+    const tally = document.createElement("span");
+    tally.className = count < 8 ? "count thin" : "count";
+    tally.textContent = `${count}`;
+    row.append(name, tally);
+    ui.teachList.append(row);
+  }
+}
+
+/**
+ * Re-read what is stored and redraw.
+ *
+ * Reads the whole store, so it is called when something has changed structurally —
+ * not after every sample during a session, where the count is already known and
+ * re-reading every recording to count them would stall the capture loop.
+ */
+async function refreshTaught() {
+  state.counts = await store.counts();
+  for (const sample of state.shipped) {
+    state.counts.set(sample.label, (state.counts.get(sample.label) ?? 0) + 1);
+  }
+  renderTaughtList();
 
   const signs = state.counts.size;
   const thin = [...state.counts].filter(([, n]) => n < 8).map(([l]) => l);
@@ -395,16 +445,20 @@ async function refreshTaught() {
     advise(`Teach at least two signs — a classifier given one thing to recognise ` +
            `has learned nothing. ${signs} taught so far.`);
   } else if (thin.length) {
-    advise(`${thin.join(", ")} ${thin.length === 1 ? "has" : "have"} fewer than 8 ` +
-           `samples. It will work, but it will refuse more often than it needs to.`);
+    advise(`${thin.slice(0, 4).join(", ")}${thin.length > 4 ? "…" : ""} ` +
+           `${thin.length === 1 ? "has" : "have"} fewer than 8 samples. It will work, ` +
+           `but it will refuse more often than it needs to.`);
   } else {
-    advise("Enough to recognise. More samples, and more variety in them, is what " +
-           "makes it refuse less often.", "ready");
+    advise(`${signs} signs taught. More variety in the samples — distance, angle, ` +
+           `lighting — is what makes it refuse less often.`, "ready");
   }
 }
 
 async function rebuildModel() {
-  const samples = await store.all();
+  // Shipped signs and taught signs are one training set. Keeping them apart at fit
+  // time would mean a visitor who teaches one sign of their own suddenly has a model
+  // that knows only that sign.
+  const samples = [...state.shipped, ...(await store.all())];
   const labels = new Set(samples.map((s) => s.label));
 
   if (labels.size < 2) {
@@ -432,6 +486,97 @@ function buildLabelChoices() {
     option.textContent = `${label} — ${VOCABULARY[label].en}`;
     ui.teachLabel.append(option);
   }
+}
+
+
+/* ------------------------------------------------------------------ *
+ * the guided session — teaching the whole vocabulary in one run        *
+ * ------------------------------------------------------------------ */
+
+function startSession() {
+  state.session = {
+    order: Object.keys(VOCABULARY),
+    index: 0,
+    target: SAMPLES_PER_SIGN,
+    done: 0,
+  };
+  ui.sessionIdle.hidden = true;
+  ui.sessionLive.hidden = false;
+  settleSession();
+}
+
+/** Land on the next sign that still needs samples, or finish. */
+function settleSession() {
+  const session = state.session;
+  if (!session) return;
+
+  // Signs that already have enough are stepped over rather than recorded again, so a
+  // session interrupted halfway resumes instead of starting from the beginning.
+  while (session.index < session.order.length &&
+         (state.counts.get(session.order[session.index]) ?? 0) >= session.target) {
+    session.index += 1;
+  }
+
+  if (session.index >= session.order.length) return finishSession();
+
+  const label = session.order[session.index];
+  session.done = state.counts.get(label) ?? 0;
+  state.teaching = label;
+  segmenter.reset();
+  renderSession();
+}
+
+function advanceSession() {
+  if (!state.session) return;
+  state.session.index += 1;
+  settleSession();
+}
+
+async function finishSession() {
+  state.session = null;
+  state.teaching = null;
+  ui.sessionIdle.hidden = false;
+  ui.sessionLive.hidden = true;
+
+  setStatus(ui.teachStatus, "idle", "Fitting");
+  await refreshTaught();
+  await rebuildModel();
+  setStatus(ui.teachStatus, state.model ? "live" : "warn",
+            state.model ? "Ready" : "Not enough");
+
+  if (state.model) {
+    advise(`Done — ${state.counts.size} signs. Press “Done” to try it, and save the ` +
+           `signs to a file so they survive this browser.`, "ready");
+  }
+}
+
+function renderSession() {
+  const session = state.session;
+  if (!session) return;
+
+  const label = session.order[session.index];
+  const rtl = isRtl(state.language);
+
+  ui.sessionStep.textContent =
+    `Sign ${session.index + 1} of ${session.order.length}`;
+
+  // The word is shown in the language chosen on the way in, because the person
+  // teaching may not read English, and the label underneath is the key the model
+  // actually uses — the two are different things and are shown as different things.
+  ui.sessionSign.textContent = toText(label, state.language);
+  ui.sessionSign.lang = state.language === "ku" ? "ckb" : state.language;
+  ui.sessionSign.dir = rtl ? "rtl" : "ltr";
+  ui.sessionSign.classList.toggle("is-arabic", rtl);
+  ui.sessionGloss.textContent = label;
+
+  const fraction = Math.min(1, session.done / session.target);
+  ui.sessionFill.style.width = `${Math.round(fraction * 100)}%`;
+  ui.sessionCount.textContent = `${session.done} / ${session.target} samples`;
+
+  ui.sessionAdvice.textContent =
+    "Make the sign, then lower your hands. It records by itself and starts the next " +
+    "one. Change your distance and angle a little between samples — a model taught " +
+    "from one exact pose refuses everything that is not it.";
 }
 
 
@@ -464,6 +609,14 @@ async function enter(language) {
     return;
   }
 
+  const shipped = await bundle.loadShipped();
+  state.shipped = shipped.samples;
+  if (shipped.problem) {
+    // A signs file that is present but unreadable must not look identical to no
+    // signs file at all: one is a normal deployment, the other is a broken one.
+    console.warn("shipped signs ignored:", shipped.problem);
+  }
+
   await refreshTaught();
   await rebuildModel();
   paintPanel();
@@ -487,9 +640,42 @@ function wire() {
   });
 
   el("btn-back").addEventListener("click", async () => {
+    if (state.session) await finishSession();
     state.teaching = null;
     show("live");
     await rebuildModel();
+  });
+
+  el("btn-session").addEventListener("click", startSession);
+  el("btn-skip").addEventListener("click", advanceSession);
+  el("btn-stop").addEventListener("click", finishSession);
+
+  el("btn-save").addEventListener("click", async () => {
+    const taught = await store.all();
+    if (taught.length === 0) {
+      advise("Nothing taught on this device yet — there is nothing to save.");
+      return;
+    }
+    bundle.save(taught, "destdeng-signs.json");
+    advise(`Saved ${taught.length} samples. Commit that file to the repository as ` +
+           `web/model/signs.json and everyone who opens the site gets them.`, "ready");
+  });
+
+  el("file-load").addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const loaded = await bundle.read(file);
+      for (const sample of loaded) await store.add(sample.label, sample.sequence);
+      await refreshTaught();
+      await rebuildModel();
+      advise(`Loaded ${loaded.length} samples from ${file.name}.`, "ready");
+    } catch (error) {
+      // A rejected file is reported rather than half-loaded: a bundle from an older
+      // feature layout would score old measurements as new ones.
+      advise(`Could not load that file. ${error.message}`);
+    }
+    event.target.value = "";
   });
 
   el("btn-record").addEventListener("click", () => {
