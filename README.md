@@ -199,6 +199,10 @@ Full instructions and troubleshooting: [`SETUP.md`](SETUP.md).
 | `src/console.py` | Lets the terminal print Arabic and Kurdish instead of crashing on them |
 | `tests/test_pipeline.py` | The self-test — everything that does not need a camera |
 | `src/mp_compat.py` | Fails with a useful message if MediaPipe is the wrong version |
+| `web/` | The browser build: same pipeline, same refusal, no Python and no button |
+| `web/js/segment.js` | Decides when a sign starts and stops, so nothing has to be pressed |
+| `tools/check_parity.py` | Runs both feature pipelines on the same inputs and fails on any difference |
+| `tools/test_web.mjs` | The web build's own 17 checks — its gates are asserted, not assumed |
 
 `data/` and `models/` are both gitignored, and the second matters more than it looks: the novelty check carries a compressed projection of the training set inside the model file, so excluding `data/` while publishing `models/` would hand over the recordings anyway.
 
@@ -224,6 +228,79 @@ three languages, for an accepted sign, a refusal and an idle screen, and inspect
 The camera and recording screens were rendered the same way. What is *not* verified
 here is recognition accuracy on real signing: that needs a recorded dataset and deaf
 signers, and it is the first item on the roadmap for a reason.
+
+## On the web
+
+The desktop app needs Python, a virtual environment on a supported interpreter, and
+someone willing to press SPACE for every sign. None of that survives contact with a
+hospital desk, so there is a second front end: a static site in [`web/`](web/) that
+does the whole thing in a browser.
+
+```
+web/                      open index.html from any static host
+tools/check_parity.py     proves the two feature pipelines agree
+tools/test_web.mjs        the browser build's 17 checks — node, no browser needed
+```
+
+**What it does differently, and why**
+
+| | Desktop | Web |
+|---|---|---|
+| Starting a reading | you press SPACE | it watches, and decides when a sign starts and ends |
+| Classifier | Random Forest, trained offline in Python | nearest neighbours in the same reduced space, fitted in the page |
+| Teaching | `record_dataset.py`, then `train_model.py` | on the page; a sample is stored the moment it is read |
+| Where samples live | `data/`, on the machine | IndexedDB, in that browser |
+| Arabic and Kurdish | reshaped by hand, font checked at startup | shaped by the browser — the problem does not exist |
+
+Three of those deserve a sentence each.
+
+**The button had to go.** On a desk between two people, SPACE is unreachable by the
+signer and mistimed by the reader. So the web build segments continuously: hands
+enter, move, and leave, and the gaps around a sign are the signal ([`web/js/segment.js`](web/js/segment.js)).
+Each of its four thresholds exists to survive a specific failure — a hand reaching
+past the lens is not a sign, and a tracker dropping a hand mid-sign must not file the
+two halves as two signs.
+
+> **This is still one sign at a time.** It is automatic, not continuous. Reading
+> connected signed sentences, where signs blend into each other and grammar lives in
+> the transitions, is an open research problem and is listed as post-V1 below.
+> Nothing in the web build solves it, and the interface says so rather than letting a
+> fluent signer find out.
+
+**The classifier changed because the training moved.** Fitting a Random Forest in a
+browser is not practical, and requiring Python before the site does anything would
+defeat the point of having a site. So the web build classifies by nearest neighbours —
+which is the method the novelty gate already used, now doing both jobs: the distance
+to the nearest training sample answers *is this anything I know*, and the vote among
+the k nearest answers *which sign is it*. Both gates, both thresholds, and the same
+refusal, asserted in [`tools/test_web.mjs`](tools/test_web.mjs) on that code rather
+than assumed from the Python. The cost is real: a forest generalises better from few
+samples, so the browser wants a few more samples per sign.
+
+**The feature pipeline is the one thing that could not be re-imagined.** A model
+trained by one build and scored by the other is scored against columns that no longer
+mean what they meant, and the result is not a worse answer but a confident meaningless
+one. So [`web/js/features.js`](web/js/features.js) is a port held to numerical
+equality, and `tools/check_parity.py` runs both on the same awkward inputs — empty
+windows, single frames, hands with no handedness, both hands claiming the same side —
+and fails on any difference beyond float32 rounding.
+
+**Nothing is uploaded.** There is no server: the tracker is WebAssembly served from
+the site, the model is fitted in the page, and taught samples stay in that browser.
+That is the same promise the desktop makes, kept by construction rather than by
+policy — and it is why teaching in the browser is the right answer rather than a
+compromise, since a model trained from recordings never has to be published to make
+the site work.
+
+**Deploying it.** Any static host will do. On Netlify, point it at this repository and
+[`netlify.toml`](netlify.toml) does the rest — publish directory `web/`, no build
+command, nothing to install. Or drag the `web/` folder onto netlify.com/drop.
+
+```
+python tools/export_vocabulary.py    # after changing the vocabulary
+python tools/check_parity.py         # the two pipelines still agree
+node    tools/test_web.mjs           # the browser build's own checks
+```
 
 ## Scope — Version 1
 
@@ -252,7 +329,8 @@ Since no usable ZHK dataset exists publicly, one has to be recorded. This is tre
 | Language | Python | Ecosystem, and the language the project is developed in |
 | Vision / landmarks | OpenCV, MediaPipe | Runs real-time on CPU; no GPU required |
 | Modelling | Sequence classifier over keypoint features | Small model, small data requirement, CPU-friendly |
-| Interface | Local desktop application | Works offline; nothing leaves the device |
+| Interface | Local desktop application, and a static web page | Both run entirely on the device; nothing leaves it |
+| Web tracker | MediaPipe Tasks for Web (WebAssembly), vendored | No install, no CDN dependency, works on a phone |
 
 ## Roadmap
 
@@ -262,6 +340,7 @@ Since no usable ZHK dataset exists publicly, one has to be recorded. This is tre
 - [x] Three-language output layer, Kurdish in the script its readers use
 - [x] Self-test that runs without a camera
 - [x] One visual language across every camera screen, and text verified drawable before it ships
+- [x] Browser build with automatic sign segmentation — no install, no button, nothing uploaded
 - [ ] Body pose alongside hands — sign location relative to the body carries meaning
 - [ ] First dataset pass — core vocabulary, multiple signers
 - [ ] Evaluation on unseen signers (not just unseen recordings)

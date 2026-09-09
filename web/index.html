@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E1013">
+<title>DESTDENG — sign language to text</title>
+<meta name="description" content="Reads Kurdish Sign Language from a camera and shows the meaning as text in English, Arabic or Kurdish. Runs entirely in your browser; no video leaves the device.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🤟</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;600;700&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- 1. Choose the language the RESULT will be shown in.          -->
+<!--    Each option is written in its own language, because the   -->
+<!--    person choosing may not read the other two.               -->
+<!-- ============================================================ -->
+<section id="screen-language" class="screen screen--centred">
+  <div class="mark">
+    <span class="mark__dot"></span>
+    <span class="mark__name">DESTDENG</span>
+  </div>
+
+  <h1 class="lead">Show the meaning in…</h1>
+  <p class="sub">
+    Choose the language the person reading this screen understands.
+    You can change it at any time.
+  </p>
+
+  <div class="pick">
+    <button class="pick__option" data-language="en" lang="en">
+      <span class="pick__word">English</span>
+      <span class="pick__note">English</span>
+    </button>
+    <button class="pick__option" data-language="ar" lang="ar" dir="rtl">
+      <span class="pick__word">العربية</span>
+      <span class="pick__note">Arabic</span>
+    </button>
+    <button class="pick__option" data-language="ku" lang="ckb" dir="rtl">
+      <span class="pick__word">کوردی</span>
+      <span class="pick__note">Kurdish — Sorani</span>
+    </button>
+  </div>
+
+  <p class="fineprint">
+    The camera is read on this device. No video, and no picture of anyone,
+    is ever uploaded.
+  </p>
+</section>
+
+
+<!-- ============================================================ -->
+<!-- 2. The live view — the product.                              -->
+<!-- ============================================================ -->
+<section id="screen-live" class="screen screen--stage" hidden>
+  <header class="bar">
+    <div class="mark mark--small">
+      <span class="mark__dot"></span>
+      <span class="mark__name">DESTDENG</span>
+    </div>
+    <div class="bar__right">
+      <span id="status" class="status" data-state="idle"><i></i><b>Starting…</b></span>
+      <div class="langs" id="langs" role="group" aria-label="Output language"></div>
+      <button id="btn-teach" class="ghost" type="button">Teach signs</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <canvas id="view" class="view"></canvas>
+    <div id="capture-bar" class="capture-bar" hidden></div>
+    <p id="hint" class="stage__hint">Make a sign. It reads by itself — there is nothing to press.</p>
+  </div>
+
+  <!-- The only part the reader actually reads. -->
+  <output id="panel" class="panel" data-state="empty" aria-live="polite">
+    <div class="panel__rule"></div>
+    <div class="panel__text" id="panel-text"></div>
+    <div class="panel__meta">
+      <span id="panel-detail" class="panel__detail"></span>
+      <span id="panel-score" class="panel__score" hidden>
+        <span id="panel-percent"></span>
+        <span class="meter"><i id="panel-meter"></i></span>
+      </span>
+    </div>
+  </output>
+</section>
+
+
+<!-- ============================================================ -->
+<!-- 3. Teaching. A browser that has never been taught knows      -->
+<!--    nothing, and saying so plainly beats a screen that simply -->
+<!--    never answers.                                            -->
+<!-- ============================================================ -->
+<section id="screen-teach" class="screen screen--stage" hidden>
+  <header class="bar">
+    <div class="mark mark--small">
+      <span class="mark__dot"></span>
+      <span class="mark__name">Teach a sign</span>
+    </div>
+    <div class="bar__right">
+      <span id="teach-status" class="status" data-state="idle"><i></i><b>Ready</b></span>
+      <button id="btn-back" class="ghost" type="button">Done</button>
+    </div>
+  </header>
+
+  <div class="teach">
+    <div class="teach__stage">
+      <canvas id="teach-view" class="view"></canvas>
+      <div id="teach-count" class="countdown" hidden></div>
+      <div id="teach-bar" class="capture-bar" hidden></div>
+    </div>
+
+    <aside class="teach__side">
+      <label class="field">
+        <span class="field__label">Which sign?</span>
+        <select id="teach-label" class="field__input"></select>
+      </label>
+
+      <button id="btn-record" class="primary" type="button">Record one sample</button>
+
+      <p class="teach__advice" id="teach-advice"></p>
+
+      <h2 class="teach__heading">Taught on this device</h2>
+      <ul id="teach-list" class="taught"></ul>
+
+      <div class="teach__actions">
+        <button id="btn-forget" class="danger ghost" type="button">Forget everything</button>
+      </div>
+
+      <p class="fineprint">
+        Samples stay in this browser. Nothing is uploaded, and clearing your
+        browser data deletes them.
+      </p>
+    </aside>
+  </div>
+</section>
+
+
+<!-- Blocking problems: no camera, no permission, an old browser. -->
+<div id="fault" class="fault" hidden>
+  <div class="fault__box">
+    <h2 id="fault-title">Something is in the way</h2>
+    <p id="fault-detail"></p>
+    <button id="fault-retry" class="primary" type="button">Try again</button>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

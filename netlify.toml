@@ -1,0 +1,49 @@
+# Netlify configuration for the DESTDENG web build.
+#
+# There is no build step and there are no dependencies to install: web/ is a folder of
+# static files that runs entirely in the visitor's browser. That is not laziness, it is
+# the privacy property — a site with no server has nowhere to send a video of someone's
+# hands, and it cannot be quietly changed later into one that does.
+
+[build]
+  publish = "web"
+  command = ""
+
+# The hand tracker and its WebAssembly are pinned copies, served from this site rather
+# than a CDN. A clinic on a slow or filtered connection should not depend on a third
+# party being reachable, and a tracker that changes underneath a trained model is a
+# silent accuracy problem. They never change without a deploy, so cache them hard.
+[[headers]]
+  for = "/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The application code does change. Revalidate it every time rather than shipping a
+# fix nobody receives.
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # The camera is used by this page and by nothing else. Third-party frames are not
+    # part of the design and are denied the camera explicitly rather than by omission.
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+
+# Serving .wasm with the wrong content type makes the browser refuse to stream-compile
+# it, and the failure surfaces far from the cause. Netlify gets this right by default;
+# stated here so it survives a future change.
+[[headers]]
+  for = "/vendor/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
