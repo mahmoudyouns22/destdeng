@@ -292,9 +292,16 @@ policy — and it is why teaching in the browser is the right answer rather than
 compromise, since a model trained from recordings never has to be published to make
 the site work.
 
-**Deploying it.** Any static host will do. On Netlify, point it at this repository and
-[`netlify.toml`](netlify.toml) does the rest — publish directory `web/`, no build
-command, nothing to install. Or drag the `web/` folder onto netlify.com/drop.
+**Deploying it.** Any static host will do — there is no build step, no dependency to
+install, and nothing that runs on a server. Configuration for the two obvious hosts is
+committed: [`vercel.json`](vercel.json) and [`netlify.toml`](netlify.toml). Both say
+the same three things — serve `web/`, run no build, cache the vendored tracker forever
+and the application code never — so pointing either host at this repository is the
+whole deployment.
+
+That there is no server is the privacy property, not a convenience. A static site has
+nowhere to send a video of someone's hands, and it cannot quietly become a site that
+does.
 
 ```
 python tools/export_vocabulary.py    # after changing the vocabulary
